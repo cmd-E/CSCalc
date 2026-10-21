@@ -41,9 +41,10 @@ jacoco {
 def coreClasses = fileTree(layout.buildDirectory.dir('intermediates/javac/debug/compileDebugJavaWithJavac/classes')) {
     include 'com/dbuster/cscalculator/GradeCalculator*.class'
 }
-def coverageData = fileTree(layout.buildDirectory) {
-    include '**/testDebugUnitTest.exec'
+tasks.withType(Test).configureEach {
+    jacoco.destinationFile = layout.buildDirectory.file("jacoco/${name}.exec").get().asFile
 }
+def coverageData = layout.buildDirectory.file('jacoco/testDebugUnitTest.exec')
 
 tasks.register('coreCoverageReport', JacocoReport) {
     dependsOn 'testDebugUnitTest'
@@ -55,7 +56,7 @@ tasks.register('coreCoverageReport', JacocoReport) {
         html.required = true
     }
     doFirst {
-        if (coreClasses.isEmpty() || coverageData.isEmpty()) {
+        if (coreClasses.isEmpty() || !coverageData.get().asFile.isFile()) {
             throw new GradleException('Core classes or unit-test coverage data are missing')
         }
     }
