@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Android build and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK components
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Build, lint and test with core coverage gate
+        run: bash ./gradlew --no-daemon :app:assembleDebug :app:lintDebug :app:coreCoverageVerification
+      - name: Publish coverage summary
+        run: python3 checks/coverage_summary.py >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload test results, coverage, lint and debug APK
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-test-results
+          path: |
+            app/build/reports/
+            app/build/test-results/
+            app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 14
+
+  codeql:
+    name: CodeQL (java-kotlin)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@48870fdd6b42ee6474ec4207209ff87609271a5e # v4.39.0
+        with:
+          languages: java-kotlin
+          build-mode: none
+          queries: security-extended
+      - name: Analyze and upload findings
+        uses: github/codeql-action/analyze@48870fdd6b42ee6474ec4207209ff87609271a5e # v4.39.0
+        with:
+          category: /language:java-kotlin
