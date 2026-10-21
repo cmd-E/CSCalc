@@ -1,105 +1,52 @@
 package com.dbuster.cscalculator;
-
-import android.content.DialogInterface;
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
-import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
+import java.text.DecimalFormat;
 
 public class ExamMark extends Fragment {
-
-    private EditText currentMarkET;
-    private EditText finalMarkET;
-    private TextView examMarkTV;
-
-    @Nullable
-    @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    private EditText first, second;
+    private TextView result;
+    @Nullable @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle saved) {
         View view = inflater.inflate(R.layout.exammarkfragment_layout, container, false);
-        currentMarkET = view.findViewById(R.id.currentMarkEM);
-        finalMarkET = view.findViewById(R.id.finalMarkEM);
-        Button countExamBT = view.findViewById(R.id.embutton);
-        examMarkTV = view.findViewById(R.id.examMarkTV);
-        countExamBT.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String currentAverageValueEXLayout, finalMarkValueEXLayout;
-                try {
-                    currentMarkET.setError(null);
-                    finalMarkET.setError(null);
-                    currentAverageValueEXLayout = currentMarkET.getText().toString();
-                    finalMarkValueEXLayout = finalMarkET.getText().toString();
-                    if (TextUtils.isEmpty(currentAverageValueEXLayout)){
-                        currentMarkET.setError("Поле не должно быть пустым!");
-                    }
-                    else if (currentAverageValueEXLayout.equals(".")) {
-                        currentMarkET.setError("Не валидное значение!");
-                    }
-                    else if (finalMarkValueEXLayout.equals(".")) {
-                        finalMarkET.setError("Не валидное значение!");
-                    }
-                    else if (Float.parseFloat(currentAverageValueEXLayout) > 100){
-                        currentMarkET.setError("Слишком большое значение!");
-                    }
-                    else if (TextUtils.isEmpty(finalMarkValueEXLayout)){
-                        finalMarkET.setError("Поле не должно быть пустым!");
-                    }
-                    else if (Float.parseFloat(finalMarkValueEXLayout)> 100) {
-                        finalMarkET.setError("Слишком большое значение!");
-                    }
-                    else {
-                        currentMarkET.setText("");
-                        finalMarkET.setText("");
-                        double currentAverageIntEXLayout, finalMarkIntEXLayout;
-                        currentAverageIntEXLayout = Math.floor(Float.parseFloat(currentAverageValueEXLayout));
-                        finalMarkIntEXLayout = Math.floor(Float.parseFloat(finalMarkValueEXLayout));
-                        float examMark = (float)((finalMarkIntEXLayout - 0.6 * currentAverageIntEXLayout)/0.4);
-                        if (examMark > 100)
-                            examMark = 100;
-                        else if (examMark < 0) {
-                            examMark = 0;
-                        }
-                        examMarkTV.setText(String.valueOf(examMark));
-                    }
-                }
-                catch (Exception e){
-                    if (getActivity() != null) {
-
-
-                        AlertDialog.Builder builder1 = new AlertDialog.Builder(getActivity());
-                        builder1.setMessage(e.toString());
-                        builder1.setCancelable(true);
-                        builder1.setPositiveButton(
-                                "Yes",
-                                new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int id) {
-                                        dialog.cancel();
-                                    }
-                                });
-                        builder1.setNegativeButton(
-                                "No",
-                                new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int id) {
-                                        dialog.cancel();
-                                    }
-                                });
-                        AlertDialog alert11 = builder1.create();
-                        alert11.show();
-                    }
-                }
-            }
+        first = view.findViewById(R.id.currentMarkEM);
+        second = view.findViewById(R.id.finalMarkEM);
+        result = view.findViewById(R.id.examMarkTV);
+        if (saved != null) {
+            first.setText(saved.getString("first", ""));
+            second.setText(saved.getString("second", ""));
+            result.setText(saved.getString("result", ""));
+        }
+        view.findViewById(R.id.embutton).setOnClickListener(v -> {
+            first.setError(null); second.setError(null);
+            final double a, b;
+            try { a = GradeCalculator.parseMark(first.getText().toString()); }
+            catch (IllegalArgumentException error) { first.setError(error.getMessage()); return; }
+            try { b = GradeCalculator.parseMark(second.getText().toString()); }
+            catch (IllegalArgumentException error) { second.setError(error.getMessage()); return; }
+            GradeCalculator.Requirement required = GradeCalculator.requiredExam(a, b);
+                if (!required.reachable) result.setText("Цель недостижима. Максимальный итог: " + format(required.maximumFinal));
+                else result.setText(format(required.score) + (required.alreadyMet ? " — цель уже достигнута" : ""));
         });
         return view;
+    }
+    private String format(double value) { return new DecimalFormat("0.##").format(value); }
+    @Override public void onSaveInstanceState(@NonNull Bundle state) {
+        super.onSaveInstanceState(state);
+        if (first != null) {
+            state.putString("first", first.getText().toString());
+            state.putString("second", second.getText().toString());
+            state.putString("result", result.getText().toString());
+        }
+    }
+    @Override public void onDestroyView() {
+        super.onDestroyView(); first = null; second = null; result = null;
     }
 }
